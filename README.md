@@ -22,7 +22,7 @@
 ## 技術スタック
 
 ### バックエンド
-- Node.js 18
+- Node.js 22
 - Express.js
 - TypeScript
 - PostgreSQL
