@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { menuApi } from '../services/api'
+import { useState, useEffect } from 'react'
+import { menuApi } from '@/services/api'
 
 interface MenuItem {
   id: string
