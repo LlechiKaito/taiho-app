@@ -11,7 +11,7 @@
   - Application Layer: アプリケーションサービス
   - Infrastructure Layer: データベース実装
   - Interface Layer: コントローラーとルーティング
-- **PostgreSQL** データベース + **Prisma** ORM
+- **AWS DynamoDB** データベース + **AWS SDK**
 
 ### フロントエンド
 - **React** + **TypeScript**
@@ -25,8 +25,8 @@
 - Node.js 22
 - Express.js
 - TypeScript
-- PostgreSQL
-- Prisma
+- AWS DynamoDB
+- AWS SDK for JavaScript
 - CORS
 - Helmet
 - Morgan
@@ -42,13 +42,16 @@
 ### インフラ
 - Docker
 - Docker Compose
-- PostgreSQL 15
+- DynamoDB Local
+- DynamoDB Admin
 
-## セットアップ
+## 環境構築
 
 ### 前提条件
-- Docker
-- Docker Compose（または Docker Desktop）
+- **Docker** (version 20.10以上)
+- **Docker Compose** (version 2.0以上)
+- **Node.js** (version 18以上) - ローカル開発の場合
+- **Git**
 
 ### 1. リポジトリのクローン
 ```bash
@@ -56,27 +59,162 @@ git clone <repository-url>
 cd taiho-app
 ```
 
-### 2. Docker Composeで起動
+### 2. 環境変数の設定
+
+#### バックエンド環境変数
 ```bash
-# 開発環境で起動
+# backend/.env ファイルを作成
+cd backend
+cp .env.example .env  # もし.exampleファイルがある場合
+```
+
+`.env`ファイルの内容：
+```env
+# DynamoDB設定
+AWS_REGION=ap-northeast-1
+DYNAMODB_TABLE_NAME=menu-items
+
+# ローカル開発環境用
+DYNAMODB_ENDPOINT=http://dynamodb-local:8000
+
+# CORS設定
+CORS_ORIGIN=http://localhost:3000
+
+# サーバー設定
+PORT=8080
+```
+
+#### フロントエンド環境変数
+```bash
+# frontend/.env ファイルを作成
+cd frontend
+cp .env.example .env  # もし.exampleファイルがある場合
+```
+
+`.env`ファイルの内容：
+```env
+VITE_API_BASE_URL=http://localhost:8080
+```
+
+### 3. Docker Composeで起動
+
+#### 初回起動（ビルド付き）
+```bash
+# 全サービスをビルドして起動
 docker compose up --build
 
 # バックグラウンドで起動
 docker compose up -d --build
 ```
 
-### 3. データベースの初期化
+#### 2回目以降の起動
 ```bash
-# バックエンドコンテナでPrismaのセットアップを実行
-docker compose exec backend npx prisma generate
-docker compose exec backend npx prisma db push
-docker compose exec backend npx prisma db seed
+# 通常起動
+docker compose up
+
+# バックグラウンドで起動
+docker compose up -d
 ```
 
-### アクセス
-- フロントエンド: http://localhost:3000
-- バックエンドAPI: http://localhost:8080
-- データベース: localhost:5432
+### 4. データベースの初期化
+
+#### 自動初期化（推奨）
+```bash
+# 初期化スクリプトを実行
+./docker-init.sh
+```
+
+#### 手動初期化
+```bash
+# DynamoDBテーブルを作成
+docker compose exec backend node scripts/create-dynamodb-table.js
+
+# またはnpmスクリプトを使用
+docker compose exec backend npm run dynamodb:create-table
+```
+
+### 5. 動作確認
+
+#### サービスアクセス
+- **フロントエンド**: http://localhost:3000
+- **バックエンドAPI**: http://localhost:8080
+- **DynamoDB Admin**: http://localhost:8001
+- **DynamoDB Local**: http://localhost:8000
+
+#### ヘルスチェック
+```bash
+# バックエンドの状態確認
+curl http://localhost:8080/health
+
+# メニューAPIの確認
+curl http://localhost:8080/api/menu-items
+```
+
+### 6. トラブルシューティング
+
+#### よくある問題と解決方法
+
+**1. ポートが既に使用されている**
+```bash
+# 使用中のポートを確認
+lsof -i :3000
+lsof -i :8080
+lsof -i :8000
+lsof -i :8001
+
+# 必要に応じてプロセスを停止
+kill -9 <PID>
+```
+
+**2. Dockerコンテナが起動しない**
+```bash
+# ログを確認
+docker compose logs
+
+# コンテナを再作成
+docker compose down
+docker compose up --build
+```
+
+**3. DynamoDBテーブルが作成されない**
+```bash
+# DynamoDB Localが起動しているか確認
+docker compose ps dynamodb-local
+
+# 手動でテーブル作成
+docker compose exec backend node scripts/create-dynamodb-table.js
+```
+
+**4. フロントエンドでAPIエラーが発生**
+```bash
+# バックエンドのログを確認
+docker compose logs backend
+
+# バックエンドを再起動
+docker compose restart backend
+```
+
+### 7. 開発環境の詳細設定
+
+#### ホットリロード設定
+```bash
+# ファイル変更を監視して自動再起動
+docker compose up
+
+# 特定のサービスのログを監視
+docker compose logs -f backend
+docker compose logs -f frontend
+```
+
+#### デバッグ設定
+```bash
+# コンテナ内でデバッグ
+docker compose exec backend sh
+docker compose exec frontend sh
+
+# ログの詳細確認
+docker compose logs --tail=100 backend
+```
 
 ## 開発
 
@@ -98,16 +236,59 @@ docker compose down
 ```
 
 ### ローカル開発（オプション）
+
+#### 前提条件
+- Node.js 18以上
+- npm または yarn
+
+#### バックエンド開発
 ```bash
-# バックエンド（ポート8080）
 cd backend
+
+# 依存関係のインストール
 npm install
+
+# 環境変数の設定
+cp .env.example .env  # 必要に応じて
+
+# 開発サーバー起動
 npm run dev
 
-# フロントエンド（ポート3000）
+# ビルド
+npm run build
+
+# テスト実行
+npm test
+```
+
+#### フロントエンド開発
+```bash
 cd frontend
+
+# 依存関係のインストール
 npm install
+
+# 環境変数の設定
+cp .env.example .env  # 必要に応じて
+
+# 開発サーバー起動
 npm run dev
+
+# ビルド
+npm run build
+
+# プレビュー
+npm run preview
+```
+
+#### データベース設定（ローカル開発）
+```bash
+# DynamoDB Localを起動
+docker run -p 8000:8000 amazon/dynamodb-local
+
+# テーブル作成
+cd backend
+node scripts/create-dynamodb-table.js
 ```
 
 ### テスト実行
@@ -196,45 +377,96 @@ taiho-app/
 
 ## データベース操作
 
-### Prismaコマンド
+### DynamoDBコマンド
 ```bash
-# スキーマからクライアント生成
-docker compose exec backend npx prisma generate
+# DynamoDBテーブルの作成とサンプルデータ投入
+docker compose exec backend npm run dynamodb:create-table
 
-# データベースにスキーマを適用
-docker compose exec backend npx prisma db push
+# 手動でテーブル作成
+docker compose exec backend node scripts/create-dynamodb-table.js
 
-# シードデータ投入
-docker compose exec backend npx prisma db seed
+# DynamoDB Admin 管理画面
+# http://localhost:8001 にアクセス
 
-# データベースリセット
-docker compose exec backend npx prisma db push --force-reset
+# DynamoDB Local Shell
+# http://localhost:8000/shell にアクセス
+```
 
-# Prisma Studio起動
-docker compose exec backend npx prisma studio
+### データベース接続情報
+
+#### DynamoDB Local設定
+- **エンドポイント**: `http://localhost:8000`
+- **リージョン**: `ap-northeast-1`
+- **テーブル名**: `menu-items`
+- **認証情報**: ローカル環境用ダミー認証
+
+#### 接続確認
+```bash
+# DynamoDB Localの状態確認
+curl http://localhost:8000
+
+# テーブル一覧確認
+aws dynamodb list-tables --endpoint-url http://localhost:8000
+
+# テーブル詳細確認
+aws dynamodb describe-table --table-name menu-items --endpoint-url http://localhost:8000
 ```
 
 ## 環境変数
 
-### バックエンド
-- `PORT` - サーバーポート（デフォルト: 8080）
-- `DATABASE_URL` - データベース接続URL
+### バックエンド環境変数
+```env
+# サーバー設定
+PORT=8080
+
+# DynamoDB設定
+AWS_REGION=ap-northeast-1
+DYNAMODB_TABLE_NAME=menu-items
+DYNAMODB_ENDPOINT=http://dynamodb-local:8000
+
+# AWS認証情報（ローカル環境用）
+AWS_ACCESS_KEY_ID=dummy
+AWS_SECRET_ACCESS_KEY=dummy
+
+# CORS設定
+CORS_ORIGIN=http://localhost:3000
+
+# ログ設定
+NODE_ENV=development
+```
+
+### フロントエンド環境変数
+```env
+# API設定
+VITE_API_BASE_URL=http://localhost:8080
+
+# 開発環境設定
+VITE_DEV_MODE=true
+```
 
 ### Docker Compose環境変数
 ```env
-# PostgreSQL設定
-POSTGRES_USER=taiho_user
-POSTGRES_PASSWORD=taiho_password
-POSTGRES_DB=taiho_ramen
-DATABASE_URL=postgresql://taiho_user:taiho_password@postgres:5432/taiho_ramen?schema=public
+# バックエンド設定
+BACKEND_PORT=8080
+BACKEND_NODE_ENV=development
+
+# フロントエンド設定
+FRONTEND_PORT=3000
+FRONTEND_NODE_ENV=development
+
+# DynamoDB Local設定
+DYNAMODB_LOCAL_PORT=8000
+DYNAMODB_ADMIN_PORT=8001
 ```
 
 ## トラブルシューティング
 
 ### よくある問題
-1. **Prismaクライアントエラー**: `npx prisma generate` を実行
-2. **データベース接続エラー**: Docker Composeでpostgresコンテナが起動しているか確認
-3. **ポート競合**: 他のアプリケーションが3000または8080ポートを使用していないか確認
+1. **DynamoDBテーブルが存在しない**: `docker compose exec backend node scripts/create-dynamodb-table.js` を実行
+2. **データベース接続エラー**: Docker Composeでdynamodb-localコンテナが起動しているか確認
+3. **ポート競合**: 他のアプリケーションが3000、8080、8000、8001ポートを使用していないか確認
+4. **CORSエラー**: フロントエンドとバックエンドのポート設定を確認
+5. **環境変数エラー**: `.env`ファイルが正しく設定されているか確認
 
 ### ログ確認
 ```bash
@@ -244,7 +476,8 @@ docker compose logs
 # 特定サービスのログ
 docker compose logs backend
 docker compose logs frontend
-docker compose logs postgres
+docker compose logs dynamodb-local
+docker compose logs dynamodb-admin
 
 # リアルタイムログ
 docker compose logs -f backend

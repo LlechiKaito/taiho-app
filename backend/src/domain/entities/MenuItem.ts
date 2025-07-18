@@ -1,190 +1,121 @@
 export class MenuItem {
+  private static readonly VALID_CATEGORIES = ['ラーメン', 'ご飯もの', 'サイドメニュー', 'ドリンク'] as const;
+
   constructor(
     public readonly id: string,
-    public name: string,
-    public description: string,
-    private _price: number,
-    public category: string,
-    public imageUrl?: string,
-    private _isAvailable: boolean = true,
-    public readonly createdAt: Date = new Date(),
-    public updatedAt: Date = new Date()
-  ) {
-    this.validatePrice(_price);
-    this.validateName(name);
+    public readonly name: string,
+    public readonly description: string | null,
+    public readonly price: number,
+    public readonly category: string,
+    public readonly imageUrl: string | null,
+    public readonly isAvailable: boolean,
+    public readonly createdAt: Date,
+    public readonly updatedAt: Date
+  ) {}
+
+  // ビジネスロジック
+  public isValidPrice(): boolean {
+    return this.price > 0;
   }
 
-  // ビジネスロジック: 価格の取得とバリデーション
-  get price(): number {
-    return this._price;
+  public isValidCategory(): boolean {
+    return MenuItem.VALID_CATEGORIES.includes(this.category as any);
   }
 
-  set price(value: number) {
-    this.validatePrice(value);
-    this._price = value;
-    this.updatedAt = new Date();
+  public canBeOrdered(): boolean {
+    return this.isAvailable && this.isValidPrice();
   }
 
-  // ビジネスロジック: 利用可否の管理
-  get isAvailable(): boolean {
-    return this._isAvailable;
+  public toggleAvailability(): MenuItem {
+    return new MenuItem(
+      this.id,
+      this.name,
+      this.description,
+      this.price,
+      this.category,
+      this.imageUrl,
+      !this.isAvailable,
+      this.createdAt,
+      this.updatedAt
+    );
   }
 
-  makeAvailable(): void {
-    this._isAvailable = true;
-    this.updatedAt = new Date();
-  }
-
-  makeUnavailable(): void {
-    this._isAvailable = false;
-    this.updatedAt = new Date();
-  }
-
-  // ビジネスロジック: 割引価格の計算
-  calculateDiscountedPrice(discountRate: number): number {
-    if (discountRate < 0 || discountRate > 1) {
-      throw new Error('割引率は0〜1の範囲で指定してください');
-    }
-    return Math.round(this._price * (1 - discountRate));
-  }
-
-  // ビジネスロジック: カテゴリ別の表示順序
-  getCategoryOrder(): number {
-    const categoryOrder: { [key: string]: number } = {
-      'ramen': 1,
-      'rice': 2,
-      'side': 3
-    };
-    return categoryOrder[this.category] || 999;
-  }
-
-  // ビジネスロジック: 税込み価格の計算
-  calculateTaxIncludedPrice(taxRate: number = 0.1): number {
-    return Math.round(this._price * (1 + taxRate));
-  }
-
-  // ビジネスロジック: メニューアイテムの更新
-  update(data: UpdateMenuItemRequest): void {
-    if (data.name !== undefined) {
-      this.validateName(data.name);
-      this.name = data.name;
-    }
-    if (data.description !== undefined) {
-      this.description = data.description;
-    }
-    if (data.price !== undefined) {
-      this.price = data.price; // setterを使用
-    }
-    if (data.category !== undefined) {
-      this.category = data.category;
-    }
-    if (data.imageUrl !== undefined) {
-      this.imageUrl = data.imageUrl;
-    }
-    if (data.isAvailable !== undefined) {
-      this._isAvailable = data.isAvailable;
-    }
-    this.updatedAt = new Date();
-  }
-
-  // ビジネスロジック: メニューアイテムの検索適合性チェック
-  matchesSearch(searchTerm: string): boolean {
-    const term = searchTerm.toLowerCase();
-    return this.name.toLowerCase().includes(term) ||
-           this.description.toLowerCase().includes(term) ||
-           this.category.toLowerCase().includes(term);
-  }
-
-  // ビジネスロジック: 価格帯の判定
-  getPriceRange(): 'low' | 'medium' | 'high' {
-    if (this._price < 500) return 'low';
-    if (this._price < 1000) return 'medium';
-    return 'high';
-  }
-
-  // プライベートメソッド: バリデーション
-  private validatePrice(price: number): void {
-    if (price <= 0) {
-      throw new Error('価格は0より大きい値を設定してください');
-    }
-    if (price > 10000) {
-      throw new Error('価格は10,000円以下で設定してください');
-    }
-  }
-
-  private validateName(name: string): void {
-    if (!name || name.trim().length === 0) {
+  // 静的バリデーションメソッド
+  public static validateCreateData(data: CreateMenuItemData): void {
+    // 必須項目チェック
+    if (!data.name || data.name.trim().length === 0) {
       throw new Error('メニュー名は必須です');
     }
-    if (name.length > 100) {
-      throw new Error('メニュー名は100文字以下で設定してください');
+
+    if (!data.price || data.price <= 0) {
+      throw new Error('価格は0より大きい値を設定してください');
+    }
+
+    if (!data.category || data.category.trim().length === 0) {
+      throw new Error('カテゴリは必須です');
+    }
+
+    // カテゴリの妥当性チェック
+    if (!MenuItem.VALID_CATEGORIES.includes(data.category as any)) {
+      throw new Error(`カテゴリは ${MenuItem.VALID_CATEGORIES.join(', ')} のいずれかを選択してください`);
     }
   }
 
-  // ファクトリーメソッド
-  static create(data: CreateMenuItemRequest): MenuItem {
-    return new MenuItem(
-      '', // IDは後でリポジトリが設定
-      data.name,
-      data.description,
-      data.price,
-      data.category,
-      data.imageUrl
+  public static validateDuplicateName(name: string, category: string, existingItems: MenuItem[]): void {
+    const duplicateItem = existingItems.find(item => 
+      item.name.toLowerCase() === name.toLowerCase() && 
+      item.category === category
+    );
+    
+    if (duplicateItem) {
+      throw new Error('同じカテゴリに同名のメニューが既に存在します');
+    }
+  }
+
+  public static getValidCategories(): readonly string[] {
+    return MenuItem.VALID_CATEGORIES;
+  }
+
+  public static filterAvailableItems(items: MenuItem[]): MenuItem[] {
+    return items.filter(item => item.canBeOrdered());
+  }
+
+  public static filterByPriceRange(items: MenuItem[], minPrice: number, maxPrice: number): MenuItem[] {
+    return items.filter(item => 
+      item.price >= minPrice && item.price <= maxPrice && item.isAvailable
     );
   }
 
-  // データ変換メソッド
-  toPlainObject(): MenuItemData {
-    return {
-      id: this.id,
-      name: this.name,
-      description: this.description,
-      price: this._price,
-      category: this.category,
-      imageUrl: this.imageUrl,
-      isAvailable: this._isAvailable,
-      createdAt: this.createdAt,
-      updatedAt: this.updatedAt
-    };
-  }
+  public static getCategorySummary(items: MenuItem[]): { category: string; count: number; avgPrice: number }[] {
+    const categoryMap = new Map<string, MenuItem[]>();
 
-  static fromPlainObject(data: MenuItemData): MenuItem {
-    return new MenuItem(
-      data.id,
-      data.name,
-      data.description,
-      data.price,
-      data.category,
-      data.imageUrl,
-      data.isAvailable,
-      data.createdAt,
-      data.updatedAt
-    );
+    // カテゴリ別にグループ化
+    items.forEach(item => {
+      if (!categoryMap.has(item.category)) {
+        categoryMap.set(item.category, []);
+      }
+      categoryMap.get(item.category)!.push(item);
+    });
+
+    // 各カテゴリの統計を計算
+    return Array.from(categoryMap.entries()).map(([category, categoryItems]) => ({
+      category,
+      count: categoryItems.length,
+      avgPrice: categoryItems.reduce((sum, item) => sum + item.price, 0) / categoryItems.length
+    }));
   }
 }
 
-// データ転送用のインターフェース
-export interface MenuItemData {
-  id: string;
+export interface CreateMenuItemData {
   name: string;
-  description: string;
+  description?: string;
   price: number;
   category: string;
   imageUrl?: string;
-  isAvailable: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  isAvailable?: boolean;
 }
 
-export interface CreateMenuItemRequest {
-  name: string;
-  description: string;
-  price: number;
-  category: string;
-  imageUrl?: string;
-}
-
-export interface UpdateMenuItemRequest {
+export interface UpdateMenuItemData {
   name?: string;
   description?: string;
   price?: number;

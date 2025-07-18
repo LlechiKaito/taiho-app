@@ -22,7 +22,10 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "dev:prod": "VITE_API_URL=https://cayq00p1jc.execute-api.ap-northeast-1.amazonaws.com vite",
+    "build": "VITE_API_URL=https://cayq00p1jc.execute-api.ap-northeast-1.amazonaws.com VITE_ENV=production tsc && vite build",
+    "build:local": "VITE_API_URL=http://localhost:8080 VITE_ENV=local tsc && vite build",
+    "build:prod": "VITE_API_URL=https://cayq00p1jc.execute-api.ap-northeast-1.amazonaws.com VITE_ENV=production tsc && vite build",
     "preview": "vite preview"
   }
 } 

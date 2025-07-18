@@ -9,9 +9,11 @@ services:
       - ./backend:/app
       - /app/node_modules
     env_file:
-      - ./backend/.env.local
+      - ./backend/.env
+    environment:
+      - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
     depends_on:
-      - postgres
+      - dynamodb-local
     networks:
       - taiho-network
 
@@ -25,27 +27,34 @@ services:
       - ./frontend:/app
       - /app/node_modules
     env_file:
-      - ./frontend/.env.local
+      - ./frontend/.env
     depends_on:
       - backend
     networks:
       - taiho-network
 
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: taiho_ramen
-      POSTGRES_USER: taiho_user
-      POSTGRES_PASSWORD: taiho_password
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    command: "-jar DynamoDBLocal.jar -inMemory -sharedDb"
     ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - "8000:8000"
+    networks:
+      - taiho-network
+
+  dynamodb-admin:
+    image: aaronshaf/dynamodb-admin:latest
+    container_name: dynamodb-admin
+    environment:
+      - DYNAMO_ENDPOINT=dynamodb-local:8000
+    ports:
+      - "8001:8001"
+    depends_on:
+      - dynamodb-local
     networks:
       - taiho-network
 
 volumes:
-  postgres_data:
+  dynamodb_data:
 
 networks:
   taiho-network:

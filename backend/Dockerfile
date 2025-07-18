@@ -1,22 +1,28 @@
 FROM node:22-alpine
 
-# OpenSSLをインストール
-RUN apk add --no-cache openssl
-
+# 作業ディレクトリを設定
 WORKDIR /app
 
-# 環境変数を設定
-ENV DATABASE_URL="postgresql://taiho_user:taiho_password@postgres:5432/taiho_ramen?schema=public"
-
+# package.jsonとpackage-lock.jsonをコピー
 COPY package*.json ./
 
-RUN npm install
+# 依存関係をインストール
+RUN npm ci --only=production
 
+# 開発用依存関係もインストール（ビルド用）
+RUN npm ci
+
+# アプリケーションコードをコピー
 COPY . .
 
-# Prismaクライアントを生成
-RUN npx prisma generate
+# TypeScriptをビルド
+RUN npm run build
 
+# 本番用の依存関係のみ再インストール
+RUN rm -rf node_modules && npm ci --only=production
+
+# ポート8080を公開
 EXPOSE 8080
 
-CMD ["npm", "run", "dev"] 
+# アプリケーションを起動
+CMD ["npm", "start"] 

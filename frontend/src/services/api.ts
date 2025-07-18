@@ -2,11 +2,15 @@ import axios from 'axios'
 
 // APIのベースURLを環境変数から取得
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
-const API_BASE_PATH = import.meta.env.VITE_API_BASE_PATH || '/api'
+const APP_MODE = import.meta.env.MODE || 'development'
+
+// 環境情報をログ出力
+console.log(`🌍 Environment: ${APP_MODE}`)
+console.log(`🔗 API Base URL: ${API_BASE_URL}`)
 
 // Axiosインスタンスの作成
 const apiClient = axios.create({
-  baseURL: `${API_BASE_URL}${API_BASE_PATH}`,
+  baseURL: API_BASE_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -37,30 +41,40 @@ apiClient.interceptors.response.use(
   }
 )
 
+// メニューアイテムの型定義
+export interface MenuItemData {
+  name: string;
+  description?: string;
+  price: number;
+  category: string;
+  imageUrl?: string;
+  isAvailable?: boolean;
+}
+
+export interface MenuItem extends MenuItemData {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // メニューアイテム関連のAPI
 export const menuApi = {
   // 全メニューアイテム取得
-  getAll: () => apiClient.get('/menu-items'),
-  
-  // 特定のメニューアイテム取得
-  getById: (id: string) => apiClient.get(`/menu-items/${id}`),
-  
-  // カテゴリ別メニューアイテム取得
-  getByCategory: (category: string) => apiClient.get(`/menu-items/category/${category}`),
+  getAll: () => apiClient.get('/items'),
   
   // メニューアイテム作成
-  create: (data: any) => apiClient.post('/menu-items', data),
+  create: (data: MenuItemData) => apiClient.post('/items', data),
   
-  // メニューアイテム更新
-  update: (id: string, data: any) => apiClient.put(`/menu-items/${id}`, data),
-  
-  // メニューアイテム削除
-  delete: (id: string) => apiClient.delete(`/menu-items/${id}`),
+  // 以下は将来の拡張用（現在バックエンドで未実装）
+  // getById: (id: string) => apiClient.get(`/items/${id}`),
+  // getByCategory: (category: string) => apiClient.get(`/items/category/${category}`),
+  // update: (id: string, data: MenuItemData) => apiClient.put(`/items/${id}`, data),
+  // delete: (id: string) => apiClient.delete(`/items/${id}`),
 }
 
 // ヘルスチェック
 export const healthApi = {
-  check: () => apiClient.get('/health', { baseURL: API_BASE_URL })
+  check: () => apiClient.get('/health')
 }
 
 export default apiClient 

@@ -1,36 +1,21 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "commonjs",
-    "lib": ["ES2020"],
+    "module": "CommonJS",
     "outDir": "./dist",
-    "rootDir": "./",
+    "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "baseUrl": "./",
-    "paths": {
-      "@/*": ["src/*"],
-      "@/domain/*": ["src/domain/*"],
-      "@/application/*": ["src/application/*"],
-      "@/infrastructure/*": ["src/infrastructure/*"],
-      "@/interfaces/*": ["src/interfaces/*"]
-    }
+    "skipLibCheck": true,
+    "types": ["node"]
   },
-  "include": [
-    "src/**/*",
-    "prisma/**/*",
-    "tests/**/*"
-  ],
+  "include": ["src/**/*"],
   "exclude": [
+    "prisma/**/*",
+    "lambda-package/**/*",
+    "tests/**/*",
     "node_modules",
     "dist"
   ]
-} 
+}

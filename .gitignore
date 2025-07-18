@@ -64,3 +64,8 @@ jspm_packages/
 
 # Vite
 .vite/ 
+
+# Lambda packaging
+lambda-package/
+lambda-package.zip
+*.zip
