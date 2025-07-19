@@ -64,12 +64,6 @@ export const menuApi = {
   
   // メニューアイテム作成
   create: (data: MenuItemData) => apiClient.post('/items', data),
-  
-  // 以下は将来の拡張用（現在バックエンドで未実装）
-  // getById: (id: string) => apiClient.get(`/items/${id}`),
-  // getByCategory: (category: string) => apiClient.get(`/items/category/${category}`),
-  // update: (id: string, data: MenuItemData) => apiClient.put(`/items/${id}`, data),
-  // delete: (id: string) => apiClient.delete(`/items/${id}`),
 }
 
 // ヘルスチェック

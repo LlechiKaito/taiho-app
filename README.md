@@ -319,12 +319,8 @@ docker compose build frontend
 ## API エンドポイント
 
 ### メニューアイテム
-- `GET /api/menu-items` - 全メニューアイテム取得
-- `GET /api/menu-items/:id` - 特定のメニューアイテム取得
-- `GET /api/menu-items/category/:category` - カテゴリ別メニューアイテム取得
-- `POST /api/menu-items` - メニューアイテム作成
-- `PUT /api/menu-items/:id` - メニューアイテム更新
-- `DELETE /api/menu-items/:id` - メニューアイテム削除
+- `GET /items` - 全メニューアイテム取得
+- `POST /items` - メニューアイテム作成
 
 ### ヘルスチェック
 - `GET /health` - サーバー状態確認

@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { DynamoDBMenuItemRepository } from './infrastructure/repositories/DynamoDBMenuItemRepository';
-import { MenuItemUseCase } from './application/usecases/MenuItemUseCase';
+import { MenuItemApplicationService } from './application/services/MenuItemApplicationService';
 import { MenuItemController } from './adapters/controllers/MenuItemController';
 import { createMenuItemRoutes } from './adapters/routes/menuItemRoutes';
 
@@ -17,8 +17,8 @@ app.use(express.json());
 
 // 依存性注入
 const menuItemRepository = new DynamoDBMenuItemRepository();
-const menuItemUseCase = new MenuItemUseCase(menuItemRepository);
-const menuItemController = new MenuItemController(menuItemUseCase);
+const menuItemApplicationService = new MenuItemApplicationService(menuItemRepository);
+const menuItemController = new MenuItemController(menuItemApplicationService);
 
 // ルーティング設定
 app.use('/', createMenuItemRoutes(menuItemController));
