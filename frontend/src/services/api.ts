@@ -42,33 +42,47 @@ apiClient.interceptors.response.use(
 )
 
 // メニューアイテムの型定義
-export interface MenuItemData {
+export interface MenuItem {
+  id: number;
   name: string;
-  description?: string;
+  photoUrl: string | null;
+  description: string | null;
   price: number;
   category: string;
-  imageUrl?: string;
-  isAvailable?: boolean;
 }
 
-export interface MenuItem extends MenuItemData {
-  id: string;
+export interface MenuItemListResponse {
+  items: MenuItem[];
+  total: number;
+}
+
+// 注文の型定義
+export interface Order {
+  id: number;
+  userId: number;
+  isCooked: boolean;
+  isPayment: boolean;
+  isTakeOut: boolean;
   createdAt: string;
-  updatedAt: string;
+  description: string;
+  isComplete: boolean;
+}
+
+export interface OrderListResponse {
+  orders: Order[];
+  total: number;
 }
 
 // メニューアイテム関連のAPI
 export const menuApi = {
   // 全メニューアイテム取得
-  getAll: () => apiClient.get('/items'),
-  
-  // メニューアイテム作成
-  create: (data: MenuItemData) => apiClient.post('/items', data),
+  getAll: () => apiClient.get<MenuItemListResponse>('/api/items'),
 }
 
-// ヘルスチェック
-export const healthApi = {
-  check: () => apiClient.get('/health')
+// 注文関連のAPI
+export const orderApi = {
+  // 全注文取得
+  getAll: () => apiClient.get<OrderListResponse>('/api/orders'),
 }
 
 export default apiClient 

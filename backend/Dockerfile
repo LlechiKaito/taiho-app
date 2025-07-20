@@ -1,25 +1,26 @@
 FROM node:22-alpine
 
+# curlをインストール
+RUN apk add --no-cache curl
+
 # 作業ディレクトリを設定
 WORKDIR /app
 
 # package.jsonとpackage-lock.jsonをコピー
 COPY package*.json ./
 
-# 依存関係をインストール
-RUN npm ci --only=production
-
-# 開発用依存関係もインストール（ビルド用）
+# すべての依存関係をインストール（開発用も含む）
 RUN npm ci
 
 # アプリケーションコードをコピー
 COPY . .
 
+# 初期化スクリプトをコピー
+COPY docker-init.sh /docker-init.sh
+RUN chmod +x /docker-init.sh
+
 # TypeScriptをビルド
 RUN npm run build
-
-# 本番用の依存関係のみ再インストール
-RUN rm -rf node_modules && npm ci --only=production
 
 # ポート8080を公開
 EXPOSE 8080

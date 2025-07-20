@@ -19,6 +19,9 @@ if (process.env.DYNAMODB_ENDPOINT) {
     accessKeyId: 'dummy',
     secretAccessKey: 'dummy',
   };
+  // Docker環境での接続を改善
+  config.maxAttempts = 3;
+  config.retryMode = 'adaptive';
   console.log(`🔗 DynamoDB Local接続先: ${config.endpoint}`);
 } else {
   // AWS環境の場合、認証情報を明示的に設定（必要に応じて）
@@ -33,17 +36,17 @@ if (process.env.DYNAMODB_ENDPOINT) {
 
 const dynamoDBClient = new DynamoDBClient(config);
 
-const TABLE_NAME = process.env.DYNAMODB_TABLE_NAME || 'menu-items';
+const ORDERS_TABLE_NAME = process.env.DYNAMODB_ORDERS_TABLE_NAME || 'orders';
 
-async function createTable() {
+async function createOrdersTable() {
   try {
-    console.log(`📊 DynamoDBテーブル "${TABLE_NAME}" の作成を開始します...`);
+    console.log(`📊 DynamoDBテーブル "${ORDERS_TABLE_NAME}" の作成を開始します...`);
     
     // 環境変数の確認
     console.log('🔍 環境変数の確認:');
     console.log(`- AWS_REGION: ${process.env.AWS_REGION}`);
     console.log(`- DYNAMODB_ENDPOINT: ${process.env.DYNAMODB_ENDPOINT}`);
-    console.log(`- DYNAMODB_TABLE_NAME: ${process.env.DYNAMODB_TABLE_NAME}`);
+    console.log(`- DYNAMODB_ORDERS_TABLE_NAME: ${process.env.DYNAMODB_ORDERS_TABLE_NAME}`);
     console.log(`- AWS_ACCESS_KEY_ID: ${process.env.AWS_ACCESS_KEY_ID ? 'Set' : 'Not Set'}`);
     console.log(`- AWS_SECRET_ACCESS_KEY: ${process.env.AWS_SECRET_ACCESS_KEY ? 'Set' : 'Not Set'}`);
 
@@ -51,9 +54,9 @@ async function createTable() {
     try {
       console.log('🔍 既存テーブルをチェック中...');
       const result = await dynamoDBClient.send(new DescribeTableCommand({
-        TableName: TABLE_NAME
+        TableName: ORDERS_TABLE_NAME
       }));
-      console.log(`✅ テーブル "${TABLE_NAME}" は既に存在します`);
+      console.log(`✅ テーブル "${ORDERS_TABLE_NAME}" は既に存在します`);
       return;
     } catch (error) {
       if (error.name !== 'ResourceNotFoundException') {
@@ -66,7 +69,7 @@ async function createTable() {
 
     // テーブルを作成
     const createTableCommand = new CreateTableCommand({
-      TableName: TABLE_NAME,
+      TableName: ORDERS_TABLE_NAME,
       KeySchema: [
         {
           AttributeName: 'id',
@@ -76,11 +79,11 @@ async function createTable() {
       AttributeDefinitions: [
         {
           AttributeName: 'id',
-          AttributeType: 'S'
+          AttributeType: 'N'
         },
         {
-          AttributeName: 'category',
-          AttributeType: 'S'
+          AttributeName: 'userId',
+          AttributeType: 'N'
         },
         {
           AttributeName: 'createdAt',
@@ -90,10 +93,10 @@ async function createTable() {
       BillingMode: 'PAY_PER_REQUEST',
       GlobalSecondaryIndexes: [
         {
-          IndexName: 'category-index',
+          IndexName: 'userId-createdAt-index',
           KeySchema: [
             {
-              AttributeName: 'category',
+              AttributeName: 'userId',
               KeyType: 'HASH'
             },
             {
@@ -110,16 +113,16 @@ async function createTable() {
 
     console.log('🔨 テーブルを作成中...');
     await dynamoDBClient.send(createTableCommand);
-    console.log(`✅ テーブル "${TABLE_NAME}" の作成リクエストを送信しました`);
+    console.log(`✅ テーブル "${ORDERS_TABLE_NAME}" の作成リクエストを送信しました`);
 
     // DynamoDB Localでは即座にテーブルが利用可能になるため、少し待機
     console.log('⏳ 少し待機中...');
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    console.log(`✅ テーブル "${TABLE_NAME}" が作成されました`);
+    console.log(`✅ テーブル "${ORDERS_TABLE_NAME}" が作成されました`);
 
     // サンプルデータの挿入
-    await insertSampleData();
+    await insertSampleOrders();
 
   } catch (error) {
     console.error('❌ テーブル作成エラー:', error.message || error);
@@ -131,94 +134,68 @@ async function createTable() {
   }
 }
 
-async function insertSampleData() {
-  console.log('⏳ サンプルデータを挿入中...');
+async function insertSampleOrders() {
+  console.log('⏳ サンプル注文データを挿入中...');
   
   let successCount = 0;
   
-  const sampleItems = [
+  const sampleOrders = [
     {
-      id: { S: '1' },
-      name: { S: '醤油ラーメン' },
-      description: { S: '醤油ベースの定番ラーメン' },
-      price: { N: '800' },
-      category: { S: 'ラーメン' },
-      imageUrl: { S: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400&h=300&fit=crop' },
-      isAvailable: { BOOL: true },
+      id: { N: '1' },
+      userId: { N: '1' },
+      isCooked: { BOOL: false },
+      isPayment: { BOOL: false },
+      isTakeOut: { BOOL: true },
       createdAt: { S: new Date().toISOString() },
-      updatedAt: { S: new Date().toISOString() }
+      description: { S: '醤油ラーメン x1, 唐揚げ x1' },
+      isComplete: { BOOL: false }
     },
     {
-      id: { S: '2' },
-      name: { S: '味噌ラーメン' },
-      description: { S: '味噌ベースの濃厚ラーメン' },
-      price: { N: '850' },
-      category: { S: 'ラーメン' },
-      imageUrl: { S: 'https://images.unsplash.com/photo-1623341214825-9f4f963727da?w=400&h=300&fit=crop' },
-      isAvailable: { BOOL: true },
-      createdAt: { S: new Date().toISOString() },
-      updatedAt: { S: new Date().toISOString() }
+      id: { N: '2' },
+      userId: { N: '2' },
+      isCooked: { BOOL: true },
+      isPayment: { BOOL: false },
+      isTakeOut: { BOOL: false },
+      createdAt: { S: new Date(Date.now() - 1000 * 60 * 30).toISOString() }, // 30分前
+      description: { S: '味噌ラーメン x1, ビール x1' },
+      isComplete: { BOOL: false }
     },
     {
-      id: { S: '3' },
-      name: { S: 'チャーハン' },
-      description: { S: '香ばしい炒飯' },
-      price: { N: '700' },
-      category: { S: 'ご飯もの' },
-      imageUrl: { S: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=400&h=300&fit=crop' },
-      isAvailable: { BOOL: true },
-      createdAt: { S: new Date().toISOString() },
-      updatedAt: { S: new Date().toISOString() }
+      id: { N: '3' },
+      userId: { N: '3' },
+      isCooked: { BOOL: true },
+      isPayment: { BOOL: true },
+      isTakeOut: { BOOL: true },
+      createdAt: { S: new Date(Date.now() - 1000 * 60 * 60).toISOString() }, // 1時間前
+      description: { S: 'チャーハン x1, 餃子 x1' },
+      isComplete: { BOOL: false }
     },
     {
-      id: { S: '4' },
-      name: { S: '唐揚げ' },
-      description: { S: 'ジューシーな鶏の唐揚げ' },
-      price: { N: '600' },
-      category: { S: 'サイドメニュー' },
-      imageUrl: { S: 'https://images.unsplash.com/photo-1562967916-eb82221dfb92?w=400&h=300&fit=crop' },
-      isAvailable: { BOOL: true },
-      createdAt: { S: new Date().toISOString() },
-      updatedAt: { S: new Date().toISOString() }
-    },
-    {
-      id: { S: '5' },
-      name: { S: '餃子' },
-      description: { S: '手作りの焼き餃子' },
-      price: { N: '500' },
-      category: { S: 'サイドメニュー' },
-      imageUrl: { S: 'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?w=400&h=300&fit=crop' },
-      isAvailable: { BOOL: true },
-      createdAt: { S: new Date().toISOString() },
-      updatedAt: { S: new Date().toISOString() }
-    },
-    {
-      id: { S: '6' },
-      name: { S: 'ビール' },
-      description: { S: 'キンキンに冷えたビール' },
-      price: { N: '400' },
-      category: { S: 'ドリンク' },
-      imageUrl: { S: 'https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400&h=300&fit=crop' },
-      isAvailable: { BOOL: true },
-      createdAt: { S: new Date().toISOString() },
-      updatedAt: { S: new Date().toISOString() }
+      id: { N: '4' },
+      userId: { N: '1' },
+      isCooked: { BOOL: true },
+      isPayment: { BOOL: true },
+      isTakeOut: { BOOL: false },
+      createdAt: { S: new Date(Date.now() - 1000 * 60 * 120).toISOString() }, // 2時間前
+      description: { S: '醤油ラーメン x2' },
+      isComplete: { BOOL: true }
     }
   ];
 
-  for (const item of sampleItems) {
+  for (const order of sampleOrders) {
     try {
       await dynamoDBClient.send(new PutItemCommand({
-        TableName: TABLE_NAME,
-        Item: item
+        TableName: ORDERS_TABLE_NAME,
+        Item: order
       }));
-      console.log(`✅ サンプルデータ挿入: ${item.name.S}`);
+      console.log(`✅ サンプル注文データ挿入: ID ${order.id.N}`);
       successCount++;
     } catch (error) {
-      console.error(`❌ サンプルデータ挿入エラー (${item.name.S}):`, error.message || error);
+      console.error(`❌ サンプル注文データ挿入エラー (ID ${order.id.N}):`, error.message || error);
     }
   }
   
-  console.log(`📊 サンプルデータ挿入完了: ${successCount}/${sampleItems.length} 件成功`);
+  console.log(`📊 サンプル注文データ挿入完了: ${successCount}/${sampleOrders.length} 件成功`);
 }
 
 if (require.main === module) {
@@ -228,7 +205,7 @@ if (require.main === module) {
     process.exit(1);
   }, 20000);
 
-  createTable()
+  createOrdersTable()
     .then(() => {
       clearTimeout(timeout);
       console.log('🎉 処理が完了しました');
@@ -241,4 +218,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { createTable }; 
+module.exports = { createOrdersTable }; 

@@ -15,14 +15,20 @@
     "dynamodb:create-table": "node scripts/create-dynamodb-table.js"
   },
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^8.0.0",
     "@aws-sdk/client-dynamodb": "^3.496.0",
     "@aws-sdk/lib-dynamodb": "^3.496.0",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "helmet": "^7.1.0",
     "morgan": "^1.10.0",
-    "serverless-http": "^3.2.0"
+    "serverless-http": "^3.2.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "zod": "^4.0.5"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
