@@ -15,6 +15,11 @@ services:
     environment:
       - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
       - DYNAMODB_ORDERS_TABLE_NAME=orders
+      - DYNAMODB_USERS_TABLE_NAME=Users
+      - DYNAMODB_ORDER_LISTS_TABLE_NAME=OrderLists
+      - DYNAMODB_CHATS_TABLE_NAME=Chats
+      - DYNAMODB_EVENTS_TABLE_NAME=Events
+      - DYNAMODB_CALENDARS_TABLE_NAME=Calendars
       - NODE_ENV=development
     depends_on:
       - dynamodb-local
@@ -48,7 +53,6 @@ services:
       - taiho-network
 
 
-
   dynamodb-init:
     build:
       context: ./backend
@@ -62,6 +66,11 @@ services:
       - AWS_SECRET_ACCESS_KEY=local
       - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
       - DYNAMODB_ORDERS_TABLE_NAME=orders
+      - DYNAMODB_USERS_TABLE_NAME=Users
+      - DYNAMODB_ORDER_LISTS_TABLE_NAME=OrderLists
+      - DYNAMODB_CHATS_TABLE_NAME=Chats
+      - DYNAMODB_EVENTS_TABLE_NAME=Events
+      - DYNAMODB_CALENDARS_TABLE_NAME=Calendars
     depends_on:
       - dynamodb-local
     networks:

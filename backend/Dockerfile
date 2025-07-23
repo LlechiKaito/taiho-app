@@ -10,7 +10,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # すべての依存関係をインストール（開発用も含む）
-RUN npm ci
+RUN npm install
 
 # アプリケーションコードをコピー
 COPY . .

@@ -4,6 +4,7 @@ const {
   DescribeTableCommand, 
   PutItemCommand
 } = require('@aws-sdk/client-dynamodb');
+const bcrypt = require('bcryptjs');
 
 const config = {
   region: process.env.AWS_REGION || 'ap-northeast-1',
@@ -37,8 +38,13 @@ if (process.env.DYNAMODB_ENDPOINT) {
 const dynamoDBClient = new DynamoDBClient(config);
 
 const ORDERS_TABLE_NAME = process.env.DYNAMODB_ORDERS_TABLE_NAME || 'orders';
+const USERS_TABLE_NAME = 'Users';
+const ORDER_LISTS_TABLE_NAME = 'OrderLists';
+const CHATS_TABLE_NAME = 'Chats';
+const EVENTS_TABLE_NAME = 'Events';
+const CALENDARS_TABLE_NAME = 'Calendars';
 
-async function createOrdersTable() {
+async function createAllTables() {
   try {
     console.log(`📊 DynamoDBテーブル "${ORDERS_TABLE_NAME}" の作成を開始します...`);
     
@@ -121,8 +127,20 @@ async function createOrdersTable() {
 
     console.log(`✅ テーブル "${ORDERS_TABLE_NAME}" が作成されました`);
 
+    // 他のテーブルを作成
+    await createUsersTable();
+    await createOrderListsTable();
+    await createChatsTable();
+    await createEventsTable();
+    await createCalendarsTable();
+
     // サンプルデータの挿入
     await insertSampleOrders();
+    await insertSampleUsers();
+    await insertSampleOrderLists();
+    await insertSampleChats();
+    await insertSampleEvents();
+    await insertSampleCalendars();
 
   } catch (error) {
     console.error('❌ テーブル作成エラー:', error.message || error);
@@ -198,6 +216,429 @@ async function insertSampleOrders() {
   console.log(`📊 サンプル注文データ挿入完了: ${successCount}/${sampleOrders.length} 件成功`);
 }
 
+async function createUsersTable() {
+  try {
+    console.log(`📊 DynamoDBテーブル "${USERS_TABLE_NAME}" の作成を開始します...`);
+    
+    // テーブルが既に存在するかチェック
+    try {
+      const result = await dynamoDBClient.send(new DescribeTableCommand({
+        TableName: USERS_TABLE_NAME
+      }));
+      console.log(`✅ テーブル "${USERS_TABLE_NAME}" は既に存在します`);
+      return;
+    } catch (error) {
+      if (error.name !== 'ResourceNotFoundException') {
+        throw error;
+      }
+    }
+
+    // テーブルを作成
+    const createTableCommand = new CreateTableCommand({
+      TableName: USERS_TABLE_NAME,
+      KeySchema: [
+        {
+          AttributeName: 'id',
+          KeyType: 'HASH'
+        }
+      ],
+      AttributeDefinitions: [
+        {
+          AttributeName: 'id',
+          AttributeType: 'N'
+        }
+      ],
+      BillingMode: 'PAY_PER_REQUEST'
+    });
+
+    await dynamoDBClient.send(createTableCommand);
+    console.log(`✅ テーブル "${USERS_TABLE_NAME}" が作成されました`);
+  } catch (error) {
+    console.error('❌ Usersテーブル作成エラー:', error.message);
+  }
+}
+
+async function createOrderListsTable() {
+  try {
+    console.log(`📊 DynamoDBテーブル "${ORDER_LISTS_TABLE_NAME}" の作成を開始します...`);
+    
+    // テーブルが既に存在するかチェック
+    try {
+      const result = await dynamoDBClient.send(new DescribeTableCommand({
+        TableName: ORDER_LISTS_TABLE_NAME
+      }));
+      console.log(`✅ テーブル "${ORDER_LISTS_TABLE_NAME}" は既に存在します`);
+      return;
+    } catch (error) {
+      if (error.name !== 'ResourceNotFoundException') {
+        throw error;
+      }
+    }
+
+    // テーブルを作成
+    const createTableCommand = new CreateTableCommand({
+      TableName: ORDER_LISTS_TABLE_NAME,
+      KeySchema: [
+        {
+          AttributeName: 'id',
+          KeyType: 'HASH'
+        }
+      ],
+      AttributeDefinitions: [
+        {
+          AttributeName: 'id',
+          AttributeType: 'N'
+        }
+      ],
+      BillingMode: 'PAY_PER_REQUEST'
+    });
+
+    await dynamoDBClient.send(createTableCommand);
+    console.log(`✅ テーブル "${ORDER_LISTS_TABLE_NAME}" が作成されました`);
+  } catch (error) {
+    console.error('❌ OrderListsテーブル作成エラー:', error.message);
+  }
+}
+
+async function createChatsTable() {
+  try {
+    console.log(`📊 DynamoDBテーブル "${CHATS_TABLE_NAME}" の作成を開始します...`);
+    
+    // テーブルが既に存在するかチェック
+    try {
+      const result = await dynamoDBClient.send(new DescribeTableCommand({
+        TableName: CHATS_TABLE_NAME
+      }));
+      console.log(`✅ テーブル "${CHATS_TABLE_NAME}" は既に存在します`);
+      return;
+    } catch (error) {
+      if (error.name !== 'ResourceNotFoundException') {
+        throw error;
+      }
+    }
+
+    // テーブルを作成
+    const createTableCommand = new CreateTableCommand({
+      TableName: CHATS_TABLE_NAME,
+      KeySchema: [
+        {
+          AttributeName: 'id',
+          KeyType: 'HASH'
+        }
+      ],
+      AttributeDefinitions: [
+        {
+          AttributeName: 'id',
+          AttributeType: 'N'
+        }
+      ],
+      BillingMode: 'PAY_PER_REQUEST'
+    });
+
+    await dynamoDBClient.send(createTableCommand);
+    console.log(`✅ テーブル "${CHATS_TABLE_NAME}" が作成されました`);
+  } catch (error) {
+    console.error('❌ Chatsテーブル作成エラー:', error.message);
+  }
+}
+
+async function createEventsTable() {
+  try {
+    console.log(`📊 DynamoDBテーブル "${EVENTS_TABLE_NAME}" の作成を開始します...`);
+    
+    // テーブルが既に存在するかチェック
+    try {
+      const result = await dynamoDBClient.send(new DescribeTableCommand({
+        TableName: EVENTS_TABLE_NAME
+      }));
+      console.log(`✅ テーブル "${EVENTS_TABLE_NAME}" は既に存在します`);
+      return;
+    } catch (error) {
+      if (error.name !== 'ResourceNotFoundException') {
+        throw error;
+      }
+    }
+
+    // テーブルを作成
+    const createTableCommand = new CreateTableCommand({
+      TableName: EVENTS_TABLE_NAME,
+      KeySchema: [
+        {
+          AttributeName: 'id',
+          KeyType: 'HASH'
+        }
+      ],
+      AttributeDefinitions: [
+        {
+          AttributeName: 'id',
+          AttributeType: 'N'
+        }
+      ],
+      BillingMode: 'PAY_PER_REQUEST'
+    });
+
+    await dynamoDBClient.send(createTableCommand);
+    console.log(`✅ テーブル "${EVENTS_TABLE_NAME}" が作成されました`);
+  } catch (error) {
+    console.error('❌ Eventsテーブル作成エラー:', error.message);
+  }
+}
+
+async function createCalendarsTable() {
+  try {
+    console.log(`📊 DynamoDBテーブル "${CALENDARS_TABLE_NAME}" の作成を開始します...`);
+    
+    // テーブルが既に存在するかチェック
+    try {
+      const result = await dynamoDBClient.send(new DescribeTableCommand({
+        TableName: CALENDARS_TABLE_NAME
+      }));
+      console.log(`✅ テーブル "${CALENDARS_TABLE_NAME}" は既に存在します`);
+      return;
+    } catch (error) {
+      if (error.name !== 'ResourceNotFoundException') {
+        throw error;
+      }
+    }
+
+    // テーブルを作成
+    const createTableCommand = new CreateTableCommand({
+      TableName: CALENDARS_TABLE_NAME,
+      KeySchema: [
+        {
+          AttributeName: 'id',
+          KeyType: 'HASH'
+        }
+      ],
+      AttributeDefinitions: [
+        {
+          AttributeName: 'id',
+          AttributeType: 'N'
+        }
+      ],
+      BillingMode: 'PAY_PER_REQUEST'
+    });
+
+    await dynamoDBClient.send(createTableCommand);
+    console.log(`✅ テーブル "${CALENDARS_TABLE_NAME}" が作成されました`);
+  } catch (error) {
+    console.error('❌ Calendarsテーブル作成エラー:', error.message);
+  }
+}
+
+async function insertSampleUsers() {
+  console.log('⏳ サンプルユーザーデータを挿入中...');
+  
+  // パスワードをハッシュ化
+  const saltRounds = 10;
+  const hashedPassword1 = await bcrypt.hash('password123', saltRounds);
+  const hashedPassword2 = await bcrypt.hash('password123', saltRounds);
+  const hashedPassword3 = await bcrypt.hash('admin123', saltRounds);
+  
+  const sampleUsers = [
+    {
+      id: { N: '1' },
+      name: { S: '田中太郎' },
+      email: { S: 'tanaka@example.com' },
+      password: { S: hashedPassword1 },
+      address: { S: '東京都渋谷区1-1-1' },
+      telephoneNumber: { S: '03-1234-5678' },
+      gender: { S: '男性' },
+      isAdmin: { S: 'false' },
+      createdAt: { S: new Date().toISOString() },
+      updatedAt: { S: new Date().toISOString() }
+    },
+    {
+      id: { N: '2' },
+      name: { S: '佐藤花子' },
+      email: { S: 'sato@example.com' },
+      password: { S: hashedPassword2 },
+      address: { S: '東京都新宿区2-2-2' },
+      telephoneNumber: { S: '03-2345-6789' },
+      gender: { S: '女性' },
+      isAdmin: { S: 'false' },
+      createdAt: { S: new Date().toISOString() },
+      updatedAt: { S: new Date().toISOString() }
+    },
+    {
+      id: { N: '3' },
+      name: { S: '管理者' },
+      email: { S: 'admin@example.com' },
+      password: { S: hashedPassword3 },
+      address: { S: '東京都港区3-3-3' },
+      telephoneNumber: { S: '03-3456-7890' },
+      gender: { S: '男性' },
+      isAdmin: { S: 'true' },
+      createdAt: { S: new Date().toISOString() },
+      updatedAt: { S: new Date().toISOString() }
+    }
+  ];
+
+  for (const user of sampleUsers) {
+    try {
+      await dynamoDBClient.send(new PutItemCommand({
+        TableName: USERS_TABLE_NAME,
+        Item: user
+      }));
+      console.log(`✅ サンプルユーザーデータ挿入: ID ${user.id.N}`);
+    } catch (error) {
+      console.error(`❌ サンプルユーザーデータ挿入エラー (ID ${user.id.N}):`, error.message);
+    }
+  }
+  
+  console.log('📊 サンプルユーザーデータ挿入完了');
+}
+
+async function insertSampleOrderLists() {
+  console.log('⏳ サンプル注文明細データを挿入中...');
+  
+  const sampleOrderLists = [
+    {
+      id: { N: '1' },
+      orderId: { N: '1' },
+      itemId: { N: '1' },
+      quantity: { N: '1' }
+    },
+    {
+      id: { N: '2' },
+      orderId: { N: '1' },
+      itemId: { N: '2' },
+      quantity: { N: '1' }
+    },
+    {
+      id: { N: '3' },
+      orderId: { N: '2' },
+      itemId: { N: '3' },
+      quantity: { N: '1' }
+    },
+    {
+      id: { N: '4' },
+      orderId: { N: '2' },
+      itemId: { N: '4' },
+      quantity: { N: '1' }
+    }
+  ];
+
+  for (const orderList of sampleOrderLists) {
+    try {
+      await dynamoDBClient.send(new PutItemCommand({
+        TableName: ORDER_LISTS_TABLE_NAME,
+        Item: orderList
+      }));
+      console.log(`✅ サンプル注文明細データ挿入: ID ${orderList.id.N}`);
+    } catch (error) {
+      console.error(`❌ サンプル注文明細データ挿入エラー (ID ${orderList.id.N}):`, error.message);
+    }
+  }
+  
+  console.log('📊 サンプル注文明細データ挿入完了');
+}
+
+async function insertSampleChats() {
+  console.log('⏳ サンプルチャットデータを挿入中...');
+  
+  const sampleChats = [
+    {
+      id: { N: '1' },
+      orderId: { N: '1' },
+      content: { S: '注文の確認をお願いします' }
+    },
+    {
+      id: { N: '2' },
+      orderId: { N: '1' },
+      content: { S: '承知いたしました。調理を開始いたします' }
+    },
+    {
+      id: { N: '3' },
+      orderId: { N: '2' },
+      content: { S: '調理が完了しました' }
+    }
+  ];
+
+  for (const chat of sampleChats) {
+    try {
+      await dynamoDBClient.send(new PutItemCommand({
+        TableName: CHATS_TABLE_NAME,
+        Item: chat
+      }));
+      console.log(`✅ サンプルチャットデータ挿入: ID ${chat.id.N}`);
+    } catch (error) {
+      console.error(`❌ サンプルチャットデータ挿入エラー (ID ${chat.id.N}):`, error.message);
+    }
+  }
+  
+  console.log('📊 サンプルチャットデータ挿入完了');
+}
+
+async function insertSampleEvents() {
+  console.log('⏳ サンプルイベントデータを挿入中...');
+  
+  const sampleEvents = [
+    {
+      id: { N: '1' },
+      photoUrl: { S: 'https://example.com/event1.jpg' }
+    },
+    {
+      id: { N: '2' },
+      photoUrl: { S: 'https://example.com/event2.jpg' }
+    },
+    {
+      id: { N: '3' },
+      photoUrl: { S: 'https://example.com/event3.jpg' }
+    }
+  ];
+
+  for (const event of sampleEvents) {
+    try {
+      await dynamoDBClient.send(new PutItemCommand({
+        TableName: EVENTS_TABLE_NAME,
+        Item: event
+      }));
+      console.log(`✅ サンプルイベントデータ挿入: ID ${event.id.N}`);
+    } catch (error) {
+      console.error(`❌ サンプルイベントデータ挿入エラー (ID ${event.id.N}):`, error.message);
+    }
+  }
+  
+  console.log('📊 サンプルイベントデータ挿入完了');
+}
+
+async function insertSampleCalendars() {
+  console.log('⏳ サンプルカレンダーデータを挿入中...');
+  
+  const sampleCalendars = [
+    {
+      id: { N: '1' },
+      photoUrl: { S: 'https://example.com/calendar1.jpg' },
+      timestamp: { N: Date.now().toString() }
+    },
+    {
+      id: { N: '2' },
+      photoUrl: { S: 'https://example.com/calendar2.jpg' },
+      timestamp: { N: (Date.now() + 86400000).toString() } // 1日後
+    },
+    {
+      id: { N: '3' },
+      photoUrl: { S: 'https://example.com/calendar3.jpg' },
+      timestamp: { N: (Date.now() + 172800000).toString() } // 2日後
+    }
+  ];
+
+  for (const calendar of sampleCalendars) {
+    try {
+      await dynamoDBClient.send(new PutItemCommand({
+        TableName: CALENDARS_TABLE_NAME,
+        Item: calendar
+      }));
+      console.log(`✅ サンプルカレンダーデータ挿入: ID ${calendar.id.N}`);
+    } catch (error) {
+      console.error(`❌ サンプルカレンダーデータ挿入エラー (ID ${calendar.id.N}):`, error.message);
+    }
+  }
+  
+  console.log('📊 サンプルカレンダーデータ挿入完了');
+}
+
 if (require.main === module) {
   // タイムアウト設定（20秒）
   const timeout = setTimeout(() => {
@@ -205,7 +646,7 @@ if (require.main === module) {
     process.exit(1);
   }, 20000);
 
-  createOrdersTable()
+  createAllTables()
     .then(() => {
       clearTimeout(timeout);
       console.log('🎉 処理が完了しました');
@@ -218,4 +659,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { createOrdersTable }; 
+module.exports = { createAllTables }; 
