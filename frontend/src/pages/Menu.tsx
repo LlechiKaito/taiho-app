@@ -46,9 +46,9 @@ const Menu: React.FC = () => {
   }
 
   // 画像読み込み状態の管理
-  const [imageLoadStatus, setImageLoadStatus] = useState<{[key: string]: boolean}>({})
+  const [imageLoadStatus, setImageLoadStatus] = useState<{[key: number]: boolean}>({})
 
-  const handleImageLoad = (id: string) => {
+  const handleImageLoad = (id: number) => {
     setImageLoadStatus(prev => ({ ...prev, [id]: true }))
   }
 
@@ -108,7 +108,7 @@ const Menu: React.FC = () => {
           {filteredItems.map((item: MenuItem) => (
             <div key={item.id} className="card hover:shadow-lg transition-shadow">
               <div className="relative">
-                {item.imageUrl ? (
+                {item.photoUrl ? (
                   <div className="relative">
                     {/* 画像読み込み中のスケルトン */}
                     {!imageLoadStatus[item.id] && (
@@ -121,7 +121,7 @@ const Menu: React.FC = () => {
                       </div>
                     )}
                     <img
-                      src={item.imageUrl}
+                      src={item.photoUrl}
                       alt={item.name}
                       className={`w-full h-48 object-cover rounded-t-lg mb-4 transition-opacity ${
                         imageLoadStatus[item.id] ? 'opacity-100' : 'opacity-0 absolute top-0'
@@ -156,11 +156,6 @@ const Menu: React.FC = () => {
                   <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
                     {item.category}
                   </span>
-                  {!item.isAvailable && (
-                    <span className="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded">
-                      売り切れ
-                    </span>
-                  )}
                 </div>
               </div>
             </div>

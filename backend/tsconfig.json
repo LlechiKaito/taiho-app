@@ -8,7 +8,16 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["node"],
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["*"],
+      "@/adapters/*": ["adapters/*"],
+      "@/application/*": ["application/*"],
+      "@/domain/*": ["domain/*"],
+      "@/infrastructure/*": ["infrastructure/*"],
+      "@/config/*": ["config/*"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": [

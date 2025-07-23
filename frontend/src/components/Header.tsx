@@ -43,6 +43,16 @@ const Header: React.FC = () => {
               メニュー
             </Link>
             <Link
+              to="/orders"
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                isActive('/orders') 
+                  ? 'text-primary-600 bg-primary-50' 
+                  : 'text-gray-700 hover:text-primary-600'
+              }`}
+            >
+              注文一覧
+            </Link>
+            <Link
               to="/about"
               className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                 isActive('/about') 

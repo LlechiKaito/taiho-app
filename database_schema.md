@@ -24,6 +24,7 @@
 | photoUrl | string | 商品画像URL |
 | description | string | 商品説明 |
 | price | money | 価格 |
+| category | string | カテゴリー |
 
 ### Orders（注文）
 | カラム名 | データ型 | 説明 |

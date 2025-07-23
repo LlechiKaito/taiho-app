@@ -4,6 +4,7 @@ const {
   DescribeTableCommand, 
   PutItemCommand
 } = require('@aws-sdk/client-dynamodb');
+const bcrypt = require('bcryptjs');
 
 const config = {
   region: process.env.AWS_REGION || 'ap-northeast-1',
@@ -19,6 +20,9 @@ if (process.env.DYNAMODB_ENDPOINT) {
     accessKeyId: 'dummy',
     secretAccessKey: 'dummy',
   };
+  // Docker環境での接続を改善
+  config.maxAttempts = 3;
+  config.retryMode = 'adaptive';
   console.log(`🔗 DynamoDB Local接続先: ${config.endpoint}`);
 } else {
   // AWS環境の場合、認証情報を明示的に設定（必要に応じて）
@@ -33,17 +37,22 @@ if (process.env.DYNAMODB_ENDPOINT) {
 
 const dynamoDBClient = new DynamoDBClient(config);
 
-const TABLE_NAME = process.env.DYNAMODB_TABLE_NAME || 'menu-items';
+const ORDERS_TABLE_NAME = process.env.DYNAMODB_ORDERS_TABLE_NAME || 'orders';
+const USERS_TABLE_NAME = 'Users';
+const ORDER_LISTS_TABLE_NAME = 'OrderLists';
+const CHATS_TABLE_NAME = 'Chats';
+const EVENTS_TABLE_NAME = 'Events';
+const CALENDARS_TABLE_NAME = 'Calendars';
 
-async function createTable() {
+async function createAllTables() {
   try {
-    console.log(`📊 DynamoDBテーブル "${TABLE_NAME}" の作成を開始します...`);
+    console.log(`📊 DynamoDBテーブル "${ORDERS_TABLE_NAME}" の作成を開始します...`);
     
     // 環境変数の確認
     console.log('🔍 環境変数の確認:');
     console.log(`- AWS_REGION: ${process.env.AWS_REGION}`);
     console.log(`- DYNAMODB_ENDPOINT: ${process.env.DYNAMODB_ENDPOINT}`);
-    console.log(`- DYNAMODB_TABLE_NAME: ${process.env.DYNAMODB_TABLE_NAME}`);
+    console.log(`- DYNAMODB_ORDERS_TABLE_NAME: ${process.env.DYNAMODB_ORDERS_TABLE_NAME}`);
     console.log(`- AWS_ACCESS_KEY_ID: ${process.env.AWS_ACCESS_KEY_ID ? 'Set' : 'Not Set'}`);
     console.log(`- AWS_SECRET_ACCESS_KEY: ${process.env.AWS_SECRET_ACCESS_KEY ? 'Set' : 'Not Set'}`);
 
@@ -51,9 +60,9 @@ async function createTable() {
     try {
       console.log('🔍 既存テーブルをチェック中...');
       const result = await dynamoDBClient.send(new DescribeTableCommand({
-        TableName: TABLE_NAME
+        TableName: ORDERS_TABLE_NAME
       }));
-      console.log(`✅ テーブル "${TABLE_NAME}" は既に存在します`);
+      console.log(`✅ テーブル "${ORDERS_TABLE_NAME}" は既に存在します`);
       return;
     } catch (error) {
       if (error.name !== 'ResourceNotFoundException') {
@@ -66,7 +75,7 @@ async function createTable() {
 
     // テーブルを作成
     const createTableCommand = new CreateTableCommand({
-      TableName: TABLE_NAME,
+      TableName: ORDERS_TABLE_NAME,
       KeySchema: [
         {
           AttributeName: 'id',
@@ -76,11 +85,11 @@ async function createTable() {
       AttributeDefinitions: [
         {
           AttributeName: 'id',
-          AttributeType: 'S'
+          AttributeType: 'N'
         },
         {
-          AttributeName: 'category',
-          AttributeType: 'S'
+          AttributeName: 'userId',
+          AttributeType: 'N'
         },
         {
           AttributeName: 'createdAt',
@@ -90,10 +99,10 @@ async function createTable() {
       BillingMode: 'PAY_PER_REQUEST',
       GlobalSecondaryIndexes: [
         {
-          IndexName: 'category-index',
+          IndexName: 'userId-createdAt-index',
           KeySchema: [
             {
-              AttributeName: 'category',
+              AttributeName: 'userId',
               KeyType: 'HASH'
             },
             {
@@ -110,16 +119,28 @@ async function createTable() {
 
     console.log('🔨 テーブルを作成中...');
     await dynamoDBClient.send(createTableCommand);
-    console.log(`✅ テーブル "${TABLE_NAME}" の作成リクエストを送信しました`);
+    console.log(`✅ テーブル "${ORDERS_TABLE_NAME}" の作成リクエストを送信しました`);
 
     // DynamoDB Localでは即座にテーブルが利用可能になるため、少し待機
     console.log('⏳ 少し待機中...');
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    console.log(`✅ テーブル "${TABLE_NAME}" が作成されました`);
+    console.log(`✅ テーブル "${ORDERS_TABLE_NAME}" が作成されました`);
+
+    // 他のテーブルを作成
+    await createUsersTable();
+    await createOrderListsTable();
+    await createChatsTable();
+    await createEventsTable();
+    await createCalendarsTable();
 
     // サンプルデータの挿入
-    await insertSampleData();
+    await insertSampleOrders();
+    await insertSampleUsers();
+    await insertSampleOrderLists();
+    await insertSampleChats();
+    await insertSampleEvents();
+    await insertSampleCalendars();
 
   } catch (error) {
     console.error('❌ テーブル作成エラー:', error.message || error);
@@ -131,94 +152,491 @@ async function createTable() {
   }
 }
 
-async function insertSampleData() {
-  console.log('⏳ サンプルデータを挿入中...');
+async function insertSampleOrders() {
+  console.log('⏳ サンプル注文データを挿入中...');
   
   let successCount = 0;
   
-  const sampleItems = [
+  const sampleOrders = [
     {
-      id: { S: '1' },
-      name: { S: '醤油ラーメン' },
-      description: { S: '醤油ベースの定番ラーメン' },
-      price: { N: '800' },
-      category: { S: 'ラーメン' },
-      imageUrl: { S: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400&h=300&fit=crop' },
-      isAvailable: { BOOL: true },
+      id: { N: '1' },
+      userId: { N: '1' },
+      isCooked: { BOOL: false },
+      isPayment: { BOOL: false },
+      isTakeOut: { BOOL: true },
+      createdAt: { S: new Date().toISOString() },
+      description: { S: '醤油ラーメン x1, 唐揚げ x1' },
+      isComplete: { BOOL: false }
+    },
+    {
+      id: { N: '2' },
+      userId: { N: '2' },
+      isCooked: { BOOL: true },
+      isPayment: { BOOL: false },
+      isTakeOut: { BOOL: false },
+      createdAt: { S: new Date(Date.now() - 1000 * 60 * 30).toISOString() }, // 30分前
+      description: { S: '味噌ラーメン x1, ビール x1' },
+      isComplete: { BOOL: false }
+    },
+    {
+      id: { N: '3' },
+      userId: { N: '3' },
+      isCooked: { BOOL: true },
+      isPayment: { BOOL: true },
+      isTakeOut: { BOOL: true },
+      createdAt: { S: new Date(Date.now() - 1000 * 60 * 60).toISOString() }, // 1時間前
+      description: { S: 'チャーハン x1, 餃子 x1' },
+      isComplete: { BOOL: false }
+    },
+    {
+      id: { N: '4' },
+      userId: { N: '1' },
+      isCooked: { BOOL: true },
+      isPayment: { BOOL: true },
+      isTakeOut: { BOOL: false },
+      createdAt: { S: new Date(Date.now() - 1000 * 60 * 120).toISOString() }, // 2時間前
+      description: { S: '醤油ラーメン x2' },
+      isComplete: { BOOL: true }
+    }
+  ];
+
+  for (const order of sampleOrders) {
+    try {
+      await dynamoDBClient.send(new PutItemCommand({
+        TableName: ORDERS_TABLE_NAME,
+        Item: order
+      }));
+      console.log(`✅ サンプル注文データ挿入: ID ${order.id.N}`);
+      successCount++;
+    } catch (error) {
+      console.error(`❌ サンプル注文データ挿入エラー (ID ${order.id.N}):`, error.message || error);
+    }
+  }
+  
+  console.log(`📊 サンプル注文データ挿入完了: ${successCount}/${sampleOrders.length} 件成功`);
+}
+
+async function createUsersTable() {
+  try {
+    console.log(`📊 DynamoDBテーブル "${USERS_TABLE_NAME}" の作成を開始します...`);
+    
+    // テーブルが既に存在するかチェック
+    try {
+      const result = await dynamoDBClient.send(new DescribeTableCommand({
+        TableName: USERS_TABLE_NAME
+      }));
+      console.log(`✅ テーブル "${USERS_TABLE_NAME}" は既に存在します`);
+      return;
+    } catch (error) {
+      if (error.name !== 'ResourceNotFoundException') {
+        throw error;
+      }
+    }
+
+    // テーブルを作成
+    const createTableCommand = new CreateTableCommand({
+      TableName: USERS_TABLE_NAME,
+      KeySchema: [
+        {
+          AttributeName: 'id',
+          KeyType: 'HASH'
+        }
+      ],
+      AttributeDefinitions: [
+        {
+          AttributeName: 'id',
+          AttributeType: 'N'
+        }
+      ],
+      BillingMode: 'PAY_PER_REQUEST'
+    });
+
+    await dynamoDBClient.send(createTableCommand);
+    console.log(`✅ テーブル "${USERS_TABLE_NAME}" が作成されました`);
+  } catch (error) {
+    console.error('❌ Usersテーブル作成エラー:', error.message);
+  }
+}
+
+async function createOrderListsTable() {
+  try {
+    console.log(`📊 DynamoDBテーブル "${ORDER_LISTS_TABLE_NAME}" の作成を開始します...`);
+    
+    // テーブルが既に存在するかチェック
+    try {
+      const result = await dynamoDBClient.send(new DescribeTableCommand({
+        TableName: ORDER_LISTS_TABLE_NAME
+      }));
+      console.log(`✅ テーブル "${ORDER_LISTS_TABLE_NAME}" は既に存在します`);
+      return;
+    } catch (error) {
+      if (error.name !== 'ResourceNotFoundException') {
+        throw error;
+      }
+    }
+
+    // テーブルを作成
+    const createTableCommand = new CreateTableCommand({
+      TableName: ORDER_LISTS_TABLE_NAME,
+      KeySchema: [
+        {
+          AttributeName: 'id',
+          KeyType: 'HASH'
+        }
+      ],
+      AttributeDefinitions: [
+        {
+          AttributeName: 'id',
+          AttributeType: 'N'
+        }
+      ],
+      BillingMode: 'PAY_PER_REQUEST'
+    });
+
+    await dynamoDBClient.send(createTableCommand);
+    console.log(`✅ テーブル "${ORDER_LISTS_TABLE_NAME}" が作成されました`);
+  } catch (error) {
+    console.error('❌ OrderListsテーブル作成エラー:', error.message);
+  }
+}
+
+async function createChatsTable() {
+  try {
+    console.log(`📊 DynamoDBテーブル "${CHATS_TABLE_NAME}" の作成を開始します...`);
+    
+    // テーブルが既に存在するかチェック
+    try {
+      const result = await dynamoDBClient.send(new DescribeTableCommand({
+        TableName: CHATS_TABLE_NAME
+      }));
+      console.log(`✅ テーブル "${CHATS_TABLE_NAME}" は既に存在します`);
+      return;
+    } catch (error) {
+      if (error.name !== 'ResourceNotFoundException') {
+        throw error;
+      }
+    }
+
+    // テーブルを作成
+    const createTableCommand = new CreateTableCommand({
+      TableName: CHATS_TABLE_NAME,
+      KeySchema: [
+        {
+          AttributeName: 'id',
+          KeyType: 'HASH'
+        }
+      ],
+      AttributeDefinitions: [
+        {
+          AttributeName: 'id',
+          AttributeType: 'N'
+        }
+      ],
+      BillingMode: 'PAY_PER_REQUEST'
+    });
+
+    await dynamoDBClient.send(createTableCommand);
+    console.log(`✅ テーブル "${CHATS_TABLE_NAME}" が作成されました`);
+  } catch (error) {
+    console.error('❌ Chatsテーブル作成エラー:', error.message);
+  }
+}
+
+async function createEventsTable() {
+  try {
+    console.log(`📊 DynamoDBテーブル "${EVENTS_TABLE_NAME}" の作成を開始します...`);
+    
+    // テーブルが既に存在するかチェック
+    try {
+      const result = await dynamoDBClient.send(new DescribeTableCommand({
+        TableName: EVENTS_TABLE_NAME
+      }));
+      console.log(`✅ テーブル "${EVENTS_TABLE_NAME}" は既に存在します`);
+      return;
+    } catch (error) {
+      if (error.name !== 'ResourceNotFoundException') {
+        throw error;
+      }
+    }
+
+    // テーブルを作成
+    const createTableCommand = new CreateTableCommand({
+      TableName: EVENTS_TABLE_NAME,
+      KeySchema: [
+        {
+          AttributeName: 'id',
+          KeyType: 'HASH'
+        }
+      ],
+      AttributeDefinitions: [
+        {
+          AttributeName: 'id',
+          AttributeType: 'N'
+        }
+      ],
+      BillingMode: 'PAY_PER_REQUEST'
+    });
+
+    await dynamoDBClient.send(createTableCommand);
+    console.log(`✅ テーブル "${EVENTS_TABLE_NAME}" が作成されました`);
+  } catch (error) {
+    console.error('❌ Eventsテーブル作成エラー:', error.message);
+  }
+}
+
+async function createCalendarsTable() {
+  try {
+    console.log(`📊 DynamoDBテーブル "${CALENDARS_TABLE_NAME}" の作成を開始します...`);
+    
+    // テーブルが既に存在するかチェック
+    try {
+      const result = await dynamoDBClient.send(new DescribeTableCommand({
+        TableName: CALENDARS_TABLE_NAME
+      }));
+      console.log(`✅ テーブル "${CALENDARS_TABLE_NAME}" は既に存在します`);
+      return;
+    } catch (error) {
+      if (error.name !== 'ResourceNotFoundException') {
+        throw error;
+      }
+    }
+
+    // テーブルを作成
+    const createTableCommand = new CreateTableCommand({
+      TableName: CALENDARS_TABLE_NAME,
+      KeySchema: [
+        {
+          AttributeName: 'id',
+          KeyType: 'HASH'
+        }
+      ],
+      AttributeDefinitions: [
+        {
+          AttributeName: 'id',
+          AttributeType: 'N'
+        }
+      ],
+      BillingMode: 'PAY_PER_REQUEST'
+    });
+
+    await dynamoDBClient.send(createTableCommand);
+    console.log(`✅ テーブル "${CALENDARS_TABLE_NAME}" が作成されました`);
+  } catch (error) {
+    console.error('❌ Calendarsテーブル作成エラー:', error.message);
+  }
+}
+
+async function insertSampleUsers() {
+  console.log('⏳ サンプルユーザーデータを挿入中...');
+  
+  // パスワードをハッシュ化
+  const saltRounds = 10;
+  const hashedPassword1 = await bcrypt.hash('password123', saltRounds);
+  const hashedPassword2 = await bcrypt.hash('password123', saltRounds);
+  const hashedPassword3 = await bcrypt.hash('admin123', saltRounds);
+  
+  const sampleUsers = [
+    {
+      id: { N: '1' },
+      name: { S: '田中太郎' },
+      email: { S: 'tanaka@example.com' },
+      password: { S: hashedPassword1 },
+      address: { S: '東京都渋谷区1-1-1' },
+      telephoneNumber: { S: '03-1234-5678' },
+      gender: { S: '男性' },
+      isAdmin: { S: 'false' },
       createdAt: { S: new Date().toISOString() },
       updatedAt: { S: new Date().toISOString() }
     },
     {
-      id: { S: '2' },
-      name: { S: '味噌ラーメン' },
-      description: { S: '味噌ベースの濃厚ラーメン' },
-      price: { N: '850' },
-      category: { S: 'ラーメン' },
-      imageUrl: { S: 'https://images.unsplash.com/photo-1623341214825-9f4f963727da?w=400&h=300&fit=crop' },
-      isAvailable: { BOOL: true },
+      id: { N: '2' },
+      name: { S: '佐藤花子' },
+      email: { S: 'sato@example.com' },
+      password: { S: hashedPassword2 },
+      address: { S: '東京都新宿区2-2-2' },
+      telephoneNumber: { S: '03-2345-6789' },
+      gender: { S: '女性' },
+      isAdmin: { S: 'false' },
       createdAt: { S: new Date().toISOString() },
       updatedAt: { S: new Date().toISOString() }
     },
     {
-      id: { S: '3' },
-      name: { S: 'チャーハン' },
-      description: { S: '香ばしい炒飯' },
-      price: { N: '700' },
-      category: { S: 'ご飯もの' },
-      imageUrl: { S: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=400&h=300&fit=crop' },
-      isAvailable: { BOOL: true },
-      createdAt: { S: new Date().toISOString() },
-      updatedAt: { S: new Date().toISOString() }
-    },
-    {
-      id: { S: '4' },
-      name: { S: '唐揚げ' },
-      description: { S: 'ジューシーな鶏の唐揚げ' },
-      price: { N: '600' },
-      category: { S: 'サイドメニュー' },
-      imageUrl: { S: 'https://images.unsplash.com/photo-1562967916-eb82221dfb92?w=400&h=300&fit=crop' },
-      isAvailable: { BOOL: true },
-      createdAt: { S: new Date().toISOString() },
-      updatedAt: { S: new Date().toISOString() }
-    },
-    {
-      id: { S: '5' },
-      name: { S: '餃子' },
-      description: { S: '手作りの焼き餃子' },
-      price: { N: '500' },
-      category: { S: 'サイドメニュー' },
-      imageUrl: { S: 'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?w=400&h=300&fit=crop' },
-      isAvailable: { BOOL: true },
-      createdAt: { S: new Date().toISOString() },
-      updatedAt: { S: new Date().toISOString() }
-    },
-    {
-      id: { S: '6' },
-      name: { S: 'ビール' },
-      description: { S: 'キンキンに冷えたビール' },
-      price: { N: '400' },
-      category: { S: 'ドリンク' },
-      imageUrl: { S: 'https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400&h=300&fit=crop' },
-      isAvailable: { BOOL: true },
+      id: { N: '3' },
+      name: { S: '管理者' },
+      email: { S: 'admin@example.com' },
+      password: { S: hashedPassword3 },
+      address: { S: '東京都港区3-3-3' },
+      telephoneNumber: { S: '03-3456-7890' },
+      gender: { S: '男性' },
+      isAdmin: { S: 'true' },
       createdAt: { S: new Date().toISOString() },
       updatedAt: { S: new Date().toISOString() }
     }
   ];
 
-  for (const item of sampleItems) {
+  for (const user of sampleUsers) {
     try {
       await dynamoDBClient.send(new PutItemCommand({
-        TableName: TABLE_NAME,
-        Item: item
+        TableName: USERS_TABLE_NAME,
+        Item: user
       }));
-      console.log(`✅ サンプルデータ挿入: ${item.name.S}`);
-      successCount++;
+      console.log(`✅ サンプルユーザーデータ挿入: ID ${user.id.N}`);
     } catch (error) {
-      console.error(`❌ サンプルデータ挿入エラー (${item.name.S}):`, error.message || error);
+      console.error(`❌ サンプルユーザーデータ挿入エラー (ID ${user.id.N}):`, error.message);
     }
   }
   
-  console.log(`📊 サンプルデータ挿入完了: ${successCount}/${sampleItems.length} 件成功`);
+  console.log('📊 サンプルユーザーデータ挿入完了');
+}
+
+async function insertSampleOrderLists() {
+  console.log('⏳ サンプル注文明細データを挿入中...');
+  
+  const sampleOrderLists = [
+    {
+      id: { N: '1' },
+      orderId: { N: '1' },
+      itemId: { N: '1' },
+      quantity: { N: '1' }
+    },
+    {
+      id: { N: '2' },
+      orderId: { N: '1' },
+      itemId: { N: '2' },
+      quantity: { N: '1' }
+    },
+    {
+      id: { N: '3' },
+      orderId: { N: '2' },
+      itemId: { N: '3' },
+      quantity: { N: '1' }
+    },
+    {
+      id: { N: '4' },
+      orderId: { N: '2' },
+      itemId: { N: '4' },
+      quantity: { N: '1' }
+    }
+  ];
+
+  for (const orderList of sampleOrderLists) {
+    try {
+      await dynamoDBClient.send(new PutItemCommand({
+        TableName: ORDER_LISTS_TABLE_NAME,
+        Item: orderList
+      }));
+      console.log(`✅ サンプル注文明細データ挿入: ID ${orderList.id.N}`);
+    } catch (error) {
+      console.error(`❌ サンプル注文明細データ挿入エラー (ID ${orderList.id.N}):`, error.message);
+    }
+  }
+  
+  console.log('📊 サンプル注文明細データ挿入完了');
+}
+
+async function insertSampleChats() {
+  console.log('⏳ サンプルチャットデータを挿入中...');
+  
+  const sampleChats = [
+    {
+      id: { N: '1' },
+      orderId: { N: '1' },
+      content: { S: '注文の確認をお願いします' }
+    },
+    {
+      id: { N: '2' },
+      orderId: { N: '1' },
+      content: { S: '承知いたしました。調理を開始いたします' }
+    },
+    {
+      id: { N: '3' },
+      orderId: { N: '2' },
+      content: { S: '調理が完了しました' }
+    }
+  ];
+
+  for (const chat of sampleChats) {
+    try {
+      await dynamoDBClient.send(new PutItemCommand({
+        TableName: CHATS_TABLE_NAME,
+        Item: chat
+      }));
+      console.log(`✅ サンプルチャットデータ挿入: ID ${chat.id.N}`);
+    } catch (error) {
+      console.error(`❌ サンプルチャットデータ挿入エラー (ID ${chat.id.N}):`, error.message);
+    }
+  }
+  
+  console.log('📊 サンプルチャットデータ挿入完了');
+}
+
+async function insertSampleEvents() {
+  console.log('⏳ サンプルイベントデータを挿入中...');
+  
+  const sampleEvents = [
+    {
+      id: { N: '1' },
+      photoUrl: { S: 'https://example.com/event1.jpg' }
+    },
+    {
+      id: { N: '2' },
+      photoUrl: { S: 'https://example.com/event2.jpg' }
+    },
+    {
+      id: { N: '3' },
+      photoUrl: { S: 'https://example.com/event3.jpg' }
+    }
+  ];
+
+  for (const event of sampleEvents) {
+    try {
+      await dynamoDBClient.send(new PutItemCommand({
+        TableName: EVENTS_TABLE_NAME,
+        Item: event
+      }));
+      console.log(`✅ サンプルイベントデータ挿入: ID ${event.id.N}`);
+    } catch (error) {
+      console.error(`❌ サンプルイベントデータ挿入エラー (ID ${event.id.N}):`, error.message);
+    }
+  }
+  
+  console.log('📊 サンプルイベントデータ挿入完了');
+}
+
+async function insertSampleCalendars() {
+  console.log('⏳ サンプルカレンダーデータを挿入中...');
+  
+  const sampleCalendars = [
+    {
+      id: { N: '1' },
+      photoUrl: { S: 'https://example.com/calendar1.jpg' },
+      timestamp: { N: Date.now().toString() }
+    },
+    {
+      id: { N: '2' },
+      photoUrl: { S: 'https://example.com/calendar2.jpg' },
+      timestamp: { N: (Date.now() + 86400000).toString() } // 1日後
+    },
+    {
+      id: { N: '3' },
+      photoUrl: { S: 'https://example.com/calendar3.jpg' },
+      timestamp: { N: (Date.now() + 172800000).toString() } // 2日後
+    }
+  ];
+
+  for (const calendar of sampleCalendars) {
+    try {
+      await dynamoDBClient.send(new PutItemCommand({
+        TableName: CALENDARS_TABLE_NAME,
+        Item: calendar
+      }));
+      console.log(`✅ サンプルカレンダーデータ挿入: ID ${calendar.id.N}`);
+    } catch (error) {
+      console.error(`❌ サンプルカレンダーデータ挿入エラー (ID ${calendar.id.N}):`, error.message);
+    }
+  }
+  
+  console.log('📊 サンプルカレンダーデータ挿入完了');
 }
 
 if (require.main === module) {
@@ -228,7 +646,7 @@ if (require.main === module) {
     process.exit(1);
   }, 20000);
 
-  createTable()
+  createAllTables()
     .then(() => {
       clearTimeout(timeout);
       console.log('🎉 処理が完了しました');
@@ -241,4 +659,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { createTable }; 
+module.exports = { createAllTables }; 

@@ -1,25 +1,19 @@
 #!/bin/bash
 
-echo "🚀 Docker環境の初期化を開始します..."
+echo "🚀 DynamoDB Local初期化スクリプトを開始します..."
 
-# DynamoDB Localが起動するまで待機
+# DynamoDB Localの起動を待つ
 echo "⏳ DynamoDB Localの起動を待機中..."
-while ! curl -s http://localhost:8000 > /dev/null; do
-  sleep 1
+until curl -s http://dynamodb-local:8000/shell > /dev/null 2>&1; do
+    echo "   DynamoDB Localに接続できません。5秒待機..."
+    sleep 5
 done
 
-echo "✅ DynamoDB Localが起動しました"
+echo "✅ DynamoDB Localに接続できました"
 
-# バックエンドディレクトリに移動
-cd backend
+# テーブル作成スクリプトを実行
+echo "📊 テーブル作成を開始します..."
+cd /app
+node scripts/create-dynamodb-table.js
 
-# DynamoDBテーブルを作成
-echo "📊 DynamoDBテーブルを作成中..."
-npm run dynamodb:create-table
-
-echo "✅ Docker環境の初期化が完了しました！"
-echo ""
-echo "🌐 アプリケーションにアクセス："
-echo "  - フロントエンド: http://localhost:3000"
-echo "  - バックエンド: http://localhost:8080"
-echo "  - DynamoDB Local: http://localhost:8000" 
+echo "🎉 初期化が完了しました" 
